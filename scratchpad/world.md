@@ -84,3 +84,33 @@ The world enforces game rules that can't be handled by simple collision response
 - Ball speed normalization after collisions
 - Paddle rotation limits (if applicable)
 - Any other game-specific physics constraints
+
+collision detection: two aabbs overlap if they overlap on ALL three axes
+
+for each axis, boxes overlap if:
+
+- box1's max >= box2's min AND
+- box1's min <= box2's max
+
+so just check x, y, z axes separately. if all three pass, collision detected
+
+collision response: conservation of momentum with restitution
+
+1. find collision normal (direction to separate objects)
+2. calculate relative velocity along that normal
+3. compute impulse magnitude using masses and bounciness
+4. apply equal and opposite impulses to both objects
+
+the key insight is you're reversing the velocity component along the collision direction, scaled by how bouncy the materials are
+
+for aabb vs aabb, collision normal is usually the axis with minimum penetration depth (smallest overlap)
+
+impulse formula accounts for:
+
+- how fast objects are approaching each other
+- how much they should bounce (restitution)
+- mass ratio (heavy objects barely move when hit by light ones)
+
+then you just add/subtract the impulse from each object's velocity based on the normal direction
+
+the math ensures momentum is conserved and energy is reduced by the right amount for realistic bouncing

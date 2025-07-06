@@ -1,7 +1,8 @@
+#[derive(Clone, Copy)]
 pub struct Vec3 {
-    x: f32,
-    y: f32,
-    z: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 impl Vec3 {
     pub fn new(x: f32, y: f32, z: f32) -> Self {
@@ -14,11 +15,31 @@ impl Vec3 {
             z: 0.0,
         }
     }
+    pub fn update(&mut self, x: f32, y: f32, z: f32) {
+        self.x = x;
+        self.y = y;
+        self.z = z;
+    }
 }
 
+impl std::ops::Add for Vec3 {
+    type Output = Vec3;
+    fn add(self, other: Vec3) -> Vec3 {
+        Vec3::new(self.x + other.x, self.y + other.y, self.z + other.z)
+    }
+}
+
+impl std::ops::Mul<f32> for Vec3 {
+    type Output = Vec3;
+    fn mul(self, scalar: f32) -> Vec3 {
+        Vec3::new(self.x * scalar, self.y * scalar, self.z * scalar)
+    }
+}
+
+#[derive(Clone)]
 pub struct AABB {
-    min: Vec3,
-    max: Vec3,
+    pub min: Vec3,
+    pub max: Vec3,
 }
 impl AABB {
     pub fn new(min: Vec3, max: Vec3) -> Self {
@@ -39,15 +60,37 @@ impl AABB {
         );
         AABB { min, max }
     }
+
+    pub fn get_center(&self) -> Vec3 {
+        Vec3::new(
+            (self.min.x + self.max.x) / 2.0,
+            (self.min.y + self.max.y) / 2.0,
+            (self.min.z + self.max.z) / 2.0,
+        )
+    }
+
+    pub fn get_size(&self) -> Vec3 {
+        Vec3::new(
+            self.max.x - self.min.x,
+            self.max.y - self.min.y,
+            self.max.z - self.min.z,
+        )
+    }
+
+    pub fn update_from_center(&mut self, center: &Vec3) {
+        let size = self.get_size();
+        *self = AABB::from_center_size(center, &size);
+    }
 }
+#[derive(Clone)]
 pub struct RigidBody {
-    id: String,
-    position: Vec3,
-    velocity: Vec3,
-    dynamic: bool,
-    aabb: AABB,
-    mass: f32,
-    restitution: f32,
+    pub id: String,
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub dynamic: bool,
+    pub aabb: AABB,
+    pub mass: f32,
+    pub restitution: f32,
 }
 impl RigidBody {
     pub fn new(
@@ -68,6 +111,16 @@ impl RigidBody {
             mass,
             restitution,
         }
+    }
+    pub fn update_position(&mut self, x: f32, y: f32, z: f32) {
+        self.position.update(x, y, z);
+        self.compute_aabb();
+    }
+    pub fn update_velocity(&mut self, x: f32, y: f32, z: f32) {
+        self.velocity.update(x, y, z)
+    }
+    pub fn compute_aabb(&mut self) {
+        self.aabb.update_from_center(&self.position);
     }
     pub fn new_static(
         id: String,
