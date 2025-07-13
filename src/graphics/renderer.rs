@@ -10,9 +10,14 @@ pub struct Renderer {
     config: SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
+    wireframe_pipeline: wgpu::RenderPipeline,
+    line_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
+    grid_vertex_buffer: wgpu::Buffer,
+    grid_index_buffer: wgpu::Buffer,
+    grid_num_indices: u32,
     camera_bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
     depth_texture: wgpu::TextureView,
@@ -47,7 +52,7 @@ impl Renderer {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::PUSH_CONSTANTS,
+                    required_features: wgpu::Features::PUSH_CONSTANTS | wgpu::Features::POLYGON_MODE_LINE,
                     required_limits: wgpu::Limits {
                         max_push_constant_size: 128,
                         ..wgpu::Limits::default()
@@ -176,6 +181,98 @@ impl Renderer {
             multiview: None,
         });
 
+        // Create line pipeline for grid
+        let line_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Line Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vs_module,
+                entry_point: "vs_main",
+                buffers: &[crate::graphics::vertex::Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &fs_module,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,  // For grid lines
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Create wireframe pipeline for outlines
+        let wireframe_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Wireframe Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vs_module,
+                entry_point: "vs_main",
+                buffers: &[crate::graphics::vertex::Vertex::desc()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &fs_module,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Line,  // Wireframe mode
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,  // Don't write depth for outlines
+                depth_compare: wgpu::CompareFunction::LessEqual,  // Draw on top
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: -1,  // Slight bias to prevent z-fighting
+                    slope_scale: -1.0,
+                    clamp: 0.0,
+                },
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(crate::graphics::CUBE_VERTICES),
@@ -190,6 +287,23 @@ impl Renderer {
 
         let num_indices = crate::graphics::CUBE_INDICES.len() as u32;
 
+        // Create grid buffers - 3D volumetric grid
+        let (grid_vertices, grid_indices) = crate::graphics::create_grid_vertices(200.0, 100.0, 200.0, 10.0);
+        
+        let grid_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Vertex Buffer"),
+            contents: bytemuck::cast_slice(&grid_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let grid_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Index Buffer"),
+            contents: bytemuck::cast_slice(&grid_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let grid_num_indices = grid_indices.len() as u32;
+
         let depth_texture = Self::create_depth_texture(&device, &config);
 
         Self {
@@ -200,9 +314,14 @@ impl Renderer {
             config,
             size,
             render_pipeline,
+            wireframe_pipeline,
+            line_pipeline,
             vertex_buffer,
             index_buffer,
             num_indices,
+            grid_vertex_buffer,
+            grid_index_buffer,
+            grid_num_indices,
             camera_bind_group,
             camera_buffer,
             depth_texture,
@@ -266,9 +385,10 @@ impl Renderer {
             bytemuck::cast_slice(&[camera_uniform]),
         );
 
+        // First pass for grid lines
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Grid Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -286,6 +406,55 @@ impl Renderer {
                     view: &self.depth_texture,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&self.line_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.grid_vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+            // Set identity matrix for grid (it's already positioned correctly)
+            let identity_matrix = glam::Mat4::IDENTITY;
+            let identity_data = identity_matrix.to_cols_array();
+            render_pass.set_push_constants(
+                wgpu::ShaderStages::VERTEX,
+                0,
+                bytemuck::cast_slice(&identity_data),
+            );
+
+            // Override with a bright color for visibility
+            let grid_color = [0.8f32, 0.8f32, 0.8f32, 1.0f32]; // Light gray for grid
+            render_pass.set_push_constants(
+                wgpu::ShaderStages::VERTEX,
+                64,
+                bytemuck::cast_slice(&grid_color),
+            );
+
+            render_pass.draw_indexed(0..self.grid_num_indices, 0, 0..1);
+        }
+
+        // Second pass for solid objects
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,  // Don't clear, keep grid
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,  // Keep depth from grid
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -321,6 +490,58 @@ impl Renderer {
                     wgpu::ShaderStages::VERTEX,
                     64,
                     bytemuck::cast_slice(&color_data),
+                );
+
+                render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            }
+        }
+
+        // Second pass for wireframe outlines
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Wireframe Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,  // Don't clear, draw on top
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,  // Keep existing depth
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            render_pass.set_pipeline(&self.wireframe_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+            for game_object in game_objects {
+                let model_matrix = game_object.get_model_matrix();
+                let model_matrix_data = model_matrix.to_cols_array();
+
+                // Set model matrix
+                render_pass.set_push_constants(
+                    wgpu::ShaderStages::VERTEX,
+                    0,
+                    bytemuck::cast_slice(&model_matrix_data),
+                );
+
+                // Use black color for outlines
+                let outline_color = [0.0f32, 0.0f32, 0.0f32, 1.0f32];
+                render_pass.set_push_constants(
+                    wgpu::ShaderStages::VERTEX,
+                    64,
+                    bytemuck::cast_slice(&outline_color),
                 );
 
                 render_pass.draw_indexed(0..self.num_indices, 0, 0..1);

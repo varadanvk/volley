@@ -1,6 +1,7 @@
 mod graphics;
 mod physics;
 
+use glam::Vec3;
 use graphics::{Camera, GameObject, GameObjectType, GameState, Renderer};
 use physics::{RigidBody, Vector3, World};
 use std::sync::Arc;
@@ -37,10 +38,11 @@ async fn run() {
     let mut game_objects = Vec::new();
 
     let wall_thickness = 1.0;
-    let arena_width = 30.0;
-    let arena_height = 20.0;
-    let arena_depth = 20.0;
+    let arena_width = 60.0;
+    let arena_height = 40.0;
+    let arena_depth = 40.0;
 
+    // Only floor, ceiling, and front/back walls - no left/right walls for scoring
     let walls = vec![
         (
             Vector3::new(0.0, -arena_height / 2.0, 0.0),
@@ -57,14 +59,6 @@ async fn run() {
         (
             Vector3::new(0.0, 0.0, arena_depth / 2.0),
             Vector3::new(arena_width / 2.0, arena_height / 2.0, wall_thickness),
-        ),
-        (
-            Vector3::new(-arena_width / 2.0, 0.0, 0.0),
-            Vector3::new(wall_thickness, arena_height / 2.0, arena_depth / 2.0),
-        ),
-        (
-            Vector3::new(arena_width / 2.0, 0.0, 0.0),
-            Vector3::new(wall_thickness, arena_height / 2.0, arena_depth / 2.0),
         ),
     ];
 
@@ -84,9 +78,9 @@ async fn run() {
 
     let paddle1 = RigidBody::from_extents_with_id(
         "paddle1".to_string(),
-        Vector3::new(-12.0, 0.0, 0.0),
+        Vector3::new(-25.0, 0.0, 0.0), // Further left in bigger arena
         Vector3::zero(),
-        Vector3::new(0.5, 2.0, 2.0),
+        Vector3::new(1.0, 3.0, 3.0), // Slightly bigger paddle
         1000.0,
         1.0,
         false,
@@ -97,9 +91,9 @@ async fn run() {
 
     let paddle2 = RigidBody::from_extents_with_id(
         "paddle2".to_string(),
-        Vector3::new(12.0, 0.0, 0.0),
+        Vector3::new(25.0, 0.0, 0.0), // Further right in bigger arena
         Vector3::zero(),
-        Vector3::new(0.5, 2.0, 2.0),
+        Vector3::new(1.0, 3.0, 3.0), // Slightly bigger paddle
         1000.0,
         1.0,
         false,
@@ -166,20 +160,31 @@ async fn run() {
                 let dt = (now - last_time).as_secs_f64();
                 last_time = now;
 
-                let paddle_speed = 10.0;
+                let paddle_speed = 15.0; // Increased speed for larger arena
 
-                if keys_pressed.contains(&KeyCode::KeyW) {
+                // Paddle 1 movement - Y axis (up/down)
+                if keys_pressed.contains(&KeyCode::Space) {
                     world.bodies[paddle1_index].velocity.y = paddle_speed;
-                } else if keys_pressed.contains(&KeyCode::KeyS) {
+                } else if keys_pressed.contains(&KeyCode::ShiftLeft) {
                     world.bodies[paddle1_index].velocity.y = -paddle_speed;
                 } else {
                     world.bodies[paddle1_index].velocity.y = 0.0;
                 }
 
+                // Paddle 1 movement - X axis (left/right)
+                if keys_pressed.contains(&KeyCode::KeyS) {
+                    world.bodies[paddle1_index].velocity.x = -paddle_speed;
+                } else if keys_pressed.contains(&KeyCode::KeyW) {
+                    world.bodies[paddle1_index].velocity.x = paddle_speed;
+                } else {
+                    world.bodies[paddle1_index].velocity.x = 0.0;
+                }
+
+                // Paddle 1 movement - Z axis (forward/backward)
                 if keys_pressed.contains(&KeyCode::KeyA) {
-                    world.bodies[paddle1_index].velocity.z = paddle_speed;
-                } else if keys_pressed.contains(&KeyCode::KeyD) {
                     world.bodies[paddle1_index].velocity.z = -paddle_speed;
+                } else if keys_pressed.contains(&KeyCode::KeyD) {
+                    world.bodies[paddle1_index].velocity.z = paddle_speed;
                 } else {
                     world.bodies[paddle1_index].velocity.z = 0.0;
                 }
@@ -202,9 +207,85 @@ async fn run() {
 
                 world.step(dt);
 
+                // Clamp paddles within arena bounds
+                let arena_half_width = arena_width / 2.0;
+                let arena_half_height = arena_height / 2.0;
+                let arena_half_depth = arena_depth / 2.0;
+
+                // Paddle 1 constraints (green boxes)
+                let paddle1 = &mut world.bodies[paddle1_index];
+                let paddle1_half_extents = paddle1.get_half_extents();
+                let paddle1_half_x = paddle1_half_extents.x;
+                let paddle1_half_y = paddle1_half_extents.y;
+                let paddle1_half_z = paddle1_half_extents.z;
+
+                // Clamp X position
+                if paddle1.position.x - paddle1_half_x < -arena_half_width {
+                    paddle1.position.x = -arena_half_width + paddle1_half_x;
+                    paddle1.velocity.x = 0.0;
+                } else if paddle1.position.x + paddle1_half_x > arena_half_width {
+                    paddle1.position.x = arena_half_width - paddle1_half_x;
+                    paddle1.velocity.x = 0.0;
+                }
+
+                // Clamp Y position
+                if paddle1.position.y - paddle1_half_y < -arena_half_height {
+                    paddle1.position.y = -arena_half_height + paddle1_half_y;
+                    paddle1.velocity.y = 0.0;
+                } else if paddle1.position.y + paddle1_half_y > arena_half_height {
+                    paddle1.position.y = arena_half_height - paddle1_half_y;
+                    paddle1.velocity.y = 0.0;
+                }
+
+                // Clamp Z position
+                if paddle1.position.z - paddle1_half_z < -arena_half_depth {
+                    paddle1.position.z = -arena_half_depth + paddle1_half_z;
+                    paddle1.velocity.z = 0.0;
+                } else if paddle1.position.z + paddle1_half_z > arena_half_depth {
+                    paddle1.position.z = arena_half_depth - paddle1_half_z;
+                    paddle1.velocity.z = 0.0;
+                }
+
+                // Paddle 2 constraints
+                let paddle2 = &mut world.bodies[paddle2_index];
+                let paddle2_half_extents = paddle2.get_half_extents();
+                let paddle2_half_y = paddle2_half_extents.y;
+                let paddle2_half_z = paddle2_half_extents.z;
+
+                // Clamp Y position
+                if paddle2.position.y - paddle2_half_y < -arena_half_height {
+                    paddle2.position.y = -arena_half_height + paddle2_half_y;
+                    paddle2.velocity.y = 0.0;
+                } else if paddle2.position.y + paddle2_half_y > arena_half_height {
+                    paddle2.position.y = arena_half_height - paddle2_half_y;
+                    paddle2.velocity.y = 0.0;
+                }
+
+                // Clamp Z position
+                if paddle2.position.z - paddle2_half_z < -arena_half_depth {
+                    paddle2.position.z = -arena_half_depth + paddle2_half_z;
+                    paddle2.velocity.z = 0.0;
+                } else if paddle2.position.z + paddle2_half_z > arena_half_depth {
+                    paddle2.position.z = arena_half_depth - paddle2_half_z;
+                    paddle2.velocity.z = 0.0;
+                }
+
                 for (i, body) in world.bodies.iter().enumerate() {
                     game_objects[i].body = body.clone();
                 }
+
+                // Update camera to follow paddle1 in first person
+                let paddle1_pos = world.bodies[paddle1_index].position;
+                camera.eye = Vec3::new(
+                    paddle1_pos.x + 2.0, // Slightly behind the paddle
+                    paddle1_pos.y + 1.0, // Slightly above center
+                    paddle1_pos.z,
+                );
+                camera.target = Vec3::new(
+                    paddle1_pos.x + 10.0, // Look forward
+                    paddle1_pos.y,
+                    paddle1_pos.z,
+                );
 
                 if let Some(scorer) = game_state.check_scoring(&game_objects) {
                     println!(
@@ -220,20 +301,43 @@ async fn run() {
                     };
                 }
 
-                renderer.window().request_redraw();
+                // Render directly instead of requesting redraw
+                match renderer.render(&camera, &game_objects) {
+                    Ok(_) => {}
+                    Err(wgpu::SurfaceError::Lost) => {
+                        eprintln!("Surface lost!");
+                        let size = renderer.window().inner_size();
+                        renderer.resize(size);
+                    }
+                    Err(wgpu::SurfaceError::OutOfMemory) => {
+                        eprintln!("Out of memory!");
+                        event_loop_window_target.exit();
+                    }
+                    Err(e) => eprintln!("Render error: {:?}", e),
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::RedrawRequested,
                 window_id: window_id_ev,
-            } if window_id_ev == window_id => match renderer.render(&camera, &game_objects) {
-                Ok(_) => {}
-                Err(wgpu::SurfaceError::Lost) => {
-                    let size = renderer.window().inner_size();
-                    renderer.resize(size);
+            } => {
+                println!(
+                    "RedrawRequested! window_id_ev={:?}, window_id={:?}, match={}",
+                    window_id_ev,
+                    window_id,
+                    window_id_ev == window_id
+                );
+                if window_id_ev == window_id {
+                    match renderer.render(&camera, &game_objects) {
+                        Ok(_) => {}
+                        Err(wgpu::SurfaceError::Lost) => {
+                            let size = renderer.window().inner_size();
+                            renderer.resize(size);
+                        }
+                        Err(wgpu::SurfaceError::OutOfMemory) => event_loop_window_target.exit(),
+                        Err(e) => eprintln!("{:?}", e),
+                    }
                 }
-                Err(wgpu::SurfaceError::OutOfMemory) => event_loop_window_target.exit(),
-                Err(e) => eprintln!("{:?}", e),
-            },
+            }
             _ => {}
         }
     });

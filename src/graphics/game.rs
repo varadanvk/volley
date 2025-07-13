@@ -69,10 +69,10 @@ impl GameState {
     pub fn check_scoring(&mut self, game_objects: &[GameObject]) -> Option<u8> {
         let ball = &game_objects[self.ball_index].body;
         
-        if ball.position.x < -15.0 {
+        if ball.position.x < -30.0 {  // Updated for new arena size
             self.score_player2 += 1;
             return Some(2);
-        } else if ball.position.x > 15.0 {
+        } else if ball.position.x > 30.0 {  // Updated for new arena size
             self.score_player1 += 1;
             return Some(1);
         }

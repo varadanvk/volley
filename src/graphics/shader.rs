@@ -9,6 +9,7 @@ var<uniform> camera: CameraUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
+    @location(1) color: vec3<f32>,
 };
 
 struct VertexOutput {
@@ -26,7 +27,8 @@ var<push_constant> push_constants: PushConstants;
 fn vs_main(model: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.clip_position = camera.view_proj * push_constants.model * vec4<f32>(model.position, 1.0);
-    out.color = push_constants.color;
+    // Blend vertex color with push constant color
+    out.color = vec4<f32>(model.color, 1.0) * push_constants.color;
     return out;
 }
 "#;

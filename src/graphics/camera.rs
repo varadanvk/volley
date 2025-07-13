@@ -1,5 +1,5 @@
-use glam::{Mat4, Vec3};
 use bytemuck::{Pod, Zeroable};
+use glam::{Mat4, Vec3};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
@@ -13,7 +13,7 @@ impl CameraUniform {
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
         }
     }
-    
+
     pub fn update_view_proj(&mut self, camera: &Camera) {
         self.view_proj = camera.build_view_projection_matrix().to_cols_array_2d();
     }
@@ -32,22 +32,22 @@ pub struct Camera {
 impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
-            eye: Vec3::new(0.0, 15.0, 30.0),
+            eye: Vec3::new(0.0, 8.0, 8.0), // Inside arena bounds
             target: Vec3::new(0.0, 0.0, 0.0),
             up: Vec3::Y,
             aspect: width as f32 / height as f32,
             fovy: 60.0,
             znear: 0.1,
-            zfar: 200.0,
+            zfar: 1000.0,  // Increased render distance
         }
     }
-    
+
     pub fn build_view_projection_matrix(&self) -> Mat4 {
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
         proj * view
     }
-    
+
     pub fn resize(&mut self, width: u32, height: u32) {
         self.aspect = width as f32 / height as f32;
     }
