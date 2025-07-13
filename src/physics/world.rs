@@ -8,7 +8,7 @@ use std::{sync::TryLockResult, thread};
 pub struct World {
     id: String,
     tick_rate: f32,
-    bodies: Vec<RigidBody>,
+    pub bodies: Vec<RigidBody>,
 }
 impl World {
     pub fn new(id: String, tick_rate: f32, bodies: Vec<RigidBody>) -> Self {
@@ -19,16 +19,28 @@ impl World {
         }
     }
 
+    pub fn new_empty() -> Self {
+        World {
+            id: "world".to_string(),
+            tick_rate: 60.0,
+            bodies: Vec::new(),
+        }
+    }
+
     pub fn add_body(&mut self, body: RigidBody) {
         self.bodies.push(body);
     }
-    pub fn step(&mut self, dt: f32) {
+    pub fn step(&mut self, dt: f64) {
+        let dt_f32 = dt as f32;
         self.bodies.par_iter_mut().for_each(|body| {
             if body.dynamic {
-                body.position = body.position + (body.velocity * dt);
+                body.position = body.position + (body.velocity * dt_f32);
                 body.compute_aabb();
             }
         });
+
+        // Run collision detection after updating positions
+        self.collide_pong();
     }
 
     pub fn check_collision(body_1: &RigidBody, body_2: &RigidBody) -> bool {
@@ -191,24 +203,32 @@ impl World {
         }
     }
     pub fn collide(&mut self) {
-        let mut collision_pairs = Vec::new();
-        for i in 0..self.bodies.len() {
-            for j in (i + 1)..self.bodies.len() {
-                if Self::check_collision(&self.bodies[i], &self.bodies[j]) {
-                    println!(
-                        "🔥 COLLISION DETECTED: {} and {}",
-                        self.bodies[i].id, self.bodies[j].id
-                    );
-                    collision_pairs.push((i, j));
-                }
-            }
-        }
+        let collision_pairs: Vec<(usize, usize)> = (0..self.bodies.len())
+            .into_par_iter()
+            .flat_map(|i| {
+                ((i + 1)..self.bodies.len())
+                    .into_par_iter()
+                    .filter_map(|j| {
+                        if Self::check_collision(&self.bodies[i], &self.bodies[j]) {
+                            println!(
+                                "🔥 COLLISION DETECTED: {} and {}",
+                                self.bodies[i].id, self.bodies[j].id
+                            );
+                            Some((i, j))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
 
         if collision_pairs.is_empty() {
             println!("No collisions detected this tick");
         }
 
         for (i, j) in collision_pairs {
+            // Need to split borrow to avoid borrow checker issues
             let (body1, body2) = if i < j {
                 let (left, right) = self.bodies.split_at_mut(j);
                 (&mut left[i], &mut right[0])
@@ -221,7 +241,7 @@ impl World {
         }
     }
     pub fn tick(&mut self) {
-        let dt = 1.0 / self.tick_rate;
+        let dt: f64 = 1.0 / self.tick_rate as f64;
         // Print positions of all bodies
         for body in &self.bodies {
             println!(

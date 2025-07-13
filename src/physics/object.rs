@@ -93,6 +93,10 @@ pub struct RigidBody {
     pub restitution: f32,
 }
 impl RigidBody {
+    pub fn get_half_extents(&self) -> Vec3 {
+        let size = self.aabb.get_size();
+        Vec3::new(size.x / 2.0, size.y / 2.0, size.z / 2.0)
+    }
     pub fn new(
         id: String,
         position: Vec3,
@@ -107,6 +111,49 @@ impl RigidBody {
             position,
             velocity,
             dynamic,
+            aabb,
+            mass,
+            restitution,
+        }
+    }
+    
+    pub fn from_extents(
+        position: Vec3,
+        velocity: Vec3,
+        half_extents: Vec3,
+        mass: f32,
+        restitution: f32,
+        is_static: bool,
+    ) -> Self {
+        let size = Vec3::new(half_extents.x * 2.0, half_extents.y * 2.0, half_extents.z * 2.0);
+        let aabb = AABB::from_center_size(&position, &size);
+        RigidBody {
+            id: String::new(),
+            position,
+            velocity,
+            dynamic: !is_static,
+            aabb,
+            mass,
+            restitution,
+        }
+    }
+    
+    pub fn from_extents_with_id(
+        id: String,
+        position: Vec3,
+        velocity: Vec3,
+        half_extents: Vec3,
+        mass: f32,
+        restitution: f32,
+        is_static: bool,
+    ) -> Self {
+        let size = Vec3::new(half_extents.x * 2.0, half_extents.y * 2.0, half_extents.z * 2.0);
+        let aabb = AABB::from_center_size(&position, &size);
+        RigidBody {
+            id,
+            position,
+            velocity,
+            dynamic: !is_static,
             aabb,
             mass,
             restitution,
