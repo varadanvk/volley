@@ -52,7 +52,8 @@ impl Renderer {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: wgpu::Features::PUSH_CONSTANTS | wgpu::Features::POLYGON_MODE_LINE,
+                    required_features: wgpu::Features::PUSH_CONSTANTS
+                        | wgpu::Features::POLYGON_MODE_LINE,
                     required_limits: wgpu::Limits {
                         max_push_constant_size: 128,
                         ..wgpu::Limits::default()
@@ -133,7 +134,7 @@ impl Renderer {
                 bind_group_layouts: &[&camera_bind_group_layout],
                 push_constant_ranges: &[wgpu::PushConstantRange {
                     stages: wgpu::ShaderStages::VERTEX,
-                    range: 0..80, // 64 bytes for mat4 + 16 bytes for vec4
+                    range: 0..80,
                 }],
             });
 
@@ -202,7 +203,7 @@ impl Renderer {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineList,  // For grid lines
+                topology: wgpu::PrimitiveTopology::LineList, // For grid lines
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Cw,
                 cull_mode: None,
@@ -250,17 +251,17 @@ impl Renderer {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Cw,
                 cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Line,  // Wireframe mode
+                polygon_mode: wgpu::PolygonMode::Line,
                 unclipped_depth: false,
                 conservative: false,
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: false,  // Don't write depth for outlines
-                depth_compare: wgpu::CompareFunction::LessEqual,  // Draw on top
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::LessEqual,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState {
-                    constant: -1,  // Slight bias to prevent z-fighting
+                    constant: -1,
                     slope_scale: -1.0,
                     clamp: 0.0,
                 },
@@ -288,8 +289,9 @@ impl Renderer {
         let num_indices = crate::graphics::CUBE_INDICES.len() as u32;
 
         // Create grid buffers - 3D volumetric grid
-        let (grid_vertices, grid_indices) = crate::graphics::create_grid_vertices(200.0, 100.0, 200.0, 10.0);
-        
+        let (grid_vertices, grid_indices) =
+            crate::graphics::create_grid_vertices(200.0, 100.0, 200.0, 10.0);
+
         let grid_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Grid Vertex Buffer"),
             contents: bytemuck::cast_slice(&grid_vertices),
@@ -385,7 +387,6 @@ impl Renderer {
             bytemuck::cast_slice(&[camera_uniform]),
         );
 
-        // First pass for grid lines
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Grid Pass"),
@@ -417,9 +418,9 @@ impl Renderer {
             render_pass.set_pipeline(&self.line_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.grid_vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass
+                .set_index_buffer(self.grid_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            // Set identity matrix for grid (it's already positioned correctly)
             let identity_matrix = glam::Mat4::IDENTITY;
             let identity_data = identity_matrix.to_cols_array();
             render_pass.set_push_constants(
@@ -447,14 +448,14 @@ impl Renderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,  // Don't clear, keep grid
+                        load: wgpu::LoadOp::Load, // Don't clear, keep grid
                         store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,  // Keep depth from grid
+                        load: wgpu::LoadOp::Load, // Keep depth from grid
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -472,14 +473,12 @@ impl Renderer {
                 let model_matrix = game_object.get_model_matrix();
                 let model_matrix_data = model_matrix.to_cols_array();
 
-                // Set model matrix (offset 0, size 64 bytes)
                 render_pass.set_push_constants(
                     wgpu::ShaderStages::VERTEX,
                     0,
                     bytemuck::cast_slice(&model_matrix_data),
                 );
 
-                // Set color (offset 64, size 16 bytes for vec4)
                 let color_data = [
                     game_object.color[0],
                     game_object.color[1],
@@ -504,14 +503,14 @@ impl Renderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,  // Don't clear, draw on top
+                        load: wgpu::LoadOp::Load, // Don't clear, draw on top
                         store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_texture,
                     depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,  // Keep existing depth
+                        load: wgpu::LoadOp::Load, // Keep existing depth
                         store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
@@ -529,14 +528,12 @@ impl Renderer {
                 let model_matrix = game_object.get_model_matrix();
                 let model_matrix_data = model_matrix.to_cols_array();
 
-                // Set model matrix
                 render_pass.set_push_constants(
                     wgpu::ShaderStages::VERTEX,
                     0,
                     bytemuck::cast_slice(&model_matrix_data),
                 );
 
-                // Use black color for outlines
                 let outline_color = [0.0f32, 0.0f32, 0.0f32, 1.0f32];
                 render_pass.set_push_constants(
                     wgpu::ShaderStages::VERTEX,

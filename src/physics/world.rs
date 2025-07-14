@@ -171,10 +171,8 @@ impl World {
     pub fn collide_pong(&mut self) {
         let mut collision_pairs = Vec::new();
 
-        // Find ball and collect collision pairs
         for i in 0..self.bodies.len() {
             if self.bodies[i].id.starts_with("ball") {
-                // Check ball against paddles and walls
                 for j in 0..self.bodies.len() {
                     if i != j
                         && (self.bodies[j].id.starts_with("paddle")
@@ -185,9 +183,7 @@ impl World {
                         }
                     }
                 }
-            }
-            // Also check paddle-wall collisions
-            else if self.bodies[i].id.starts_with("paddle") {
+            } else if self.bodies[i].id.starts_with("paddle") {
                 for j in 0..self.bodies.len() {
                     if i != j && self.bodies[j].id.starts_with("wall") {
                         if Self::check_collision(&self.bodies[i], &self.bodies[j]) {
@@ -252,7 +248,6 @@ impl World {
     }
     pub fn tick(&mut self) {
         let dt: f64 = 1.0 / self.tick_rate as f64;
-        // Print positions of all bodies
         for body in &self.bodies {
             println!(
                 "Body '{}': position ({:.2}, {:.2}, {:.2})",
