@@ -1,4 +1,4 @@
-use crate::physics::object::{AABB, RigidBody, Vec3};
+use crate::physics::object::RigidBody;
 use crate::physics::world::World;
 
 struct Physics {

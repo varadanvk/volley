@@ -2,8 +2,6 @@ use crate::physics::object::AABB;
 
 use super::object::{RigidBody, Vec3};
 use rayon::prelude::*;
-use std::cmp::{max, min};
-use std::{sync::TryLockResult, thread};
 
 pub struct World {
     id: String,
