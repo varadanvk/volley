@@ -186,6 +186,16 @@ impl World {
                     }
                 }
             }
+            // Also check paddle-wall collisions
+            else if self.bodies[i].id.starts_with("paddle") {
+                for j in 0..self.bodies.len() {
+                    if i != j && self.bodies[j].id.starts_with("wall") {
+                        if Self::check_collision(&self.bodies[i], &self.bodies[j]) {
+                            collision_pairs.push((i, j));
+                        }
+                    }
+                }
+            }
         }
 
         // Handle collisions
