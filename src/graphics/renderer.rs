@@ -152,7 +152,14 @@ impl Renderer {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::SrcAlpha,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent::OVER,
+                    }),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -479,16 +486,10 @@ impl Renderer {
                     bytemuck::cast_slice(&model_matrix_data),
                 );
 
-                let color_data = [
-                    game_object.color[0],
-                    game_object.color[1],
-                    game_object.color[2],
-                    1.0f32,
-                ];
                 render_pass.set_push_constants(
                     wgpu::ShaderStages::VERTEX,
                     64,
-                    bytemuck::cast_slice(&color_data),
+                    bytemuck::cast_slice(&game_object.color),
                 );
 
                 render_pass.draw_indexed(0..self.num_indices, 0, 0..1);

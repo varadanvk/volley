@@ -30,6 +30,7 @@ async fn run() {
     );
 
     let mut renderer = Renderer::new(window.clone()).await;
+
     let window_id = renderer.window().id();
     let window_size = renderer.window().inner_size();
     let mut camera = Camera::new(window_size.width, window_size.height);
@@ -122,6 +123,7 @@ async fn run() {
 
     let mut last_time = Instant::now();
     let mut keys_pressed = std::collections::HashSet::<KeyCode>::new();
+    let mut camera_mode = false;
 
     let _ = event_loop.run(move |event, event_loop_window_target| {
         event_loop_window_target.set_control_flow(ControlFlow::Poll);
@@ -145,6 +147,9 @@ async fn run() {
                     if let PhysicalKey::Code(keycode) = event.physical_key {
                         match event.state {
                             ElementState::Pressed => {
+                                if !event.repeat && keycode == KeyCode::KeyC {
+                                    camera_mode = !camera_mode;
+                                }
                                 keys_pressed.insert(keycode);
                             }
                             ElementState::Released => {
@@ -189,20 +194,45 @@ async fn run() {
                     world.bodies[paddle1_index].velocity.z = 0.0;
                 }
 
-                if keys_pressed.contains(&KeyCode::ArrowUp) {
-                    world.bodies[paddle2_index].velocity.y = paddle_speed;
-                } else if keys_pressed.contains(&KeyCode::ArrowDown) {
-                    world.bodies[paddle2_index].velocity.y = -paddle_speed;
-                } else {
-                    world.bodies[paddle2_index].velocity.y = 0.0;
+                // Paddle 2 movement
+                let mut paddle2_vel_y = 0.0;
+                let mut paddle2_vel_z = 0.0;
+
+                if !camera_mode {
+                    if keys_pressed.contains(&KeyCode::ArrowUp) {
+                        paddle2_vel_y = paddle_speed;
+                    } else if keys_pressed.contains(&KeyCode::ArrowDown) {
+                        paddle2_vel_y = -paddle_speed;
+                    }
+
+                    if keys_pressed.contains(&KeyCode::ArrowLeft) {
+                        paddle2_vel_z = paddle_speed;
+                    } else if keys_pressed.contains(&KeyCode::ArrowRight) {
+                        paddle2_vel_z = -paddle_speed;
+                    }
                 }
 
-                if keys_pressed.contains(&KeyCode::ArrowLeft) {
-                    world.bodies[paddle2_index].velocity.z = paddle_speed;
-                } else if keys_pressed.contains(&KeyCode::ArrowRight) {
-                    world.bodies[paddle2_index].velocity.z = -paddle_speed;
-                } else {
-                    world.bodies[paddle2_index].velocity.z = 0.0;
+                world.bodies[paddle2_index].velocity.y = paddle2_vel_y;
+                world.bodies[paddle2_index].velocity.z = paddle2_vel_z;
+
+                if camera_mode {
+                    let rotation_speed = 2.0; // radians per second
+                    if keys_pressed.contains(&KeyCode::ArrowLeft) {
+                        camera.yaw += rotation_speed * dt as f32;
+                    }
+                    if keys_pressed.contains(&KeyCode::ArrowRight) {
+                        camera.yaw -= rotation_speed * dt as f32;
+                    }
+                    if keys_pressed.contains(&KeyCode::ArrowUp) {
+                        camera.pitch += rotation_speed * dt as f32;
+                    }
+                    if keys_pressed.contains(&KeyCode::ArrowDown) {
+                        camera.pitch -= rotation_speed * dt as f32;
+                    }
+                    camera.pitch = camera.pitch.clamp(
+                        -std::f32::consts::FRAC_PI_2 + 0.01,
+                        std::f32::consts::FRAC_PI_2 - 0.01,
+                    );
                 }
 
                 world.step(dt);
@@ -276,14 +306,9 @@ async fn run() {
 
                 // Update camera to follow paddle1 in first person
                 let paddle1_pos = world.bodies[paddle1_index].position;
-                camera.eye = Vec3::new(
+                camera.position = Vec3::new(
                     paddle1_pos.x + 2.0, // Slightly behind the paddle
                     paddle1_pos.y + 1.0, // Slightly above center
-                    paddle1_pos.z,
-                );
-                camera.target = Vec3::new(
-                    paddle1_pos.x + 10.0, // Look forward
-                    paddle1_pos.y,
                     paddle1_pos.z,
                 );
 
@@ -301,8 +326,33 @@ async fn run() {
                     };
                 }
 
-                // Render directly instead of requesting redraw
-                match renderer.render(&camera, &game_objects) {
+                // Sort game objects for transparency
+                let mut opaque = vec![];
+                let mut transparent = vec![];
+                for obj in game_objects.iter() {
+                    if obj.color[3] < 1.0 {
+                        transparent.push(obj);
+                    } else {
+                        opaque.push(obj);
+                    }
+                }
+
+                // Sort transparent back to front
+                transparent.sort_by(|a, b| {
+                    let pos_a =
+                        glam::Vec3::new(a.body.position.x, a.body.position.y, a.body.position.z);
+                    let dist_a = (camera.position - pos_a).length_squared();
+                    let pos_b =
+                        glam::Vec3::new(b.body.position.x, b.body.position.y, b.body.position.z);
+                    let dist_b = (camera.position - pos_b).length_squared();
+                    dist_b.partial_cmp(&dist_a).unwrap()
+                });
+
+                let mut all_objects: Vec<GameObject> = opaque.into_iter().cloned().collect();
+                all_objects.extend(transparent.into_iter().cloned());
+
+                // Render
+                match renderer.render(&camera, &all_objects) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost) => {
                         eprintln!("Surface lost!");
