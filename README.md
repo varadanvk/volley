@@ -2,6 +2,8 @@
 
 A 3D volleyball-inspired game built with Rust, WebGPU, and custom physics.
 
+![image](images/image.png)
+
 ## Controls
 
 ### Player 1 (Left Paddle - Green)
