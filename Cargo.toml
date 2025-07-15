@@ -3,6 +3,10 @@ name = "volley"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+bytemuck-mode = []
+
 [dependencies]
 anyhow = "1"
 bytemuck = { version = "1", features = ["derive"] }
