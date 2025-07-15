@@ -373,7 +373,7 @@ impl Renderer {
     pub fn render(
         &mut self,
         camera: &crate::graphics::Camera,
-        game_objects: &[crate::graphics::GameObject],
+        game_objects: &[crate::game::game_engine::GameObject],
     ) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output

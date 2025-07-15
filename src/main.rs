@@ -1,17 +1,28 @@
+mod game;
 mod graphics;
 mod physics;
+mod server;
 
+use game::game_engine::{GameObject, GameObjectType, GameState};
 use glam::Vec3;
-use graphics::{Camera, GameObject, GameObjectType, GameState, Renderer};
+use graphics::{Camera, Renderer};
 use physics::{RigidBody, Vector3, World};
-use std::sync::Arc;
+use serde::Deserialize;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use warp::Filter;
 use winit::{
     event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
     window::WindowBuilder,
 };
+
+#[derive(Deserialize)]
+struct Action {
+    vel_y: f32,
+    vel_z: f32,
+}
 
 fn main() {
     pollster::block_on(run());
@@ -121,6 +132,48 @@ async fn run() {
     println!("Created {} game objects", game_objects.len());
     println!("World has {} bodies", world.bodies.len());
 
+    let world_arc = Arc::new(Mutex::new(world));
+    let game_state_arc = Arc::new(Mutex::new(game_state));
+    let paddle2_index_arc = Arc::new(paddle2_index);
+
+    // Spawn server thread
+    let world_clone = world_arc.clone();
+    let game_state_clone = game_state_arc.clone();
+    let paddle2_index_clone = paddle2_index_arc.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let world_clone1 = world_clone.clone();
+            let game_state_clone1 = game_state_clone.clone();
+            let state = warp::get().and(warp::path("state")).map(move || {
+                let world = world_clone1.lock().unwrap();
+                let game_state = game_state_clone1.lock().unwrap();
+                let response = serde_json::json!({
+                    "world": *world,
+                    "game_state": *game_state
+                });
+                warp::reply::json(&response)
+            });
+
+            let world_clone2 = world_clone.clone();
+            let paddle2_index_clone2 = paddle2_index_clone.clone();
+            let action = warp::post()
+                .and(warp::path("action"))
+                .and(warp::body::json())
+                .map(move |act: Action| {
+                    let mut world = world_clone2.lock().unwrap();
+                    let idx = *paddle2_index_clone2;
+                    world.bodies[idx].velocity.y = act.vel_y;
+                    world.bodies[idx].velocity.z = act.vel_z;
+                    "OK"
+                });
+
+            warp::serve(state.or(action))
+                .run(([127, 0, 0, 1], 3030))
+                .await;
+        });
+    });
+
     let mut last_time = Instant::now();
     let mut keys_pressed = std::collections::HashSet::<KeyCode>::new();
     let mut camera_mode = false;
@@ -168,6 +221,7 @@ async fn run() {
                 let paddle_speed = 15.0; // Increased speed for larger arena
 
                 // Paddle 1 movement - Y axis (up/down)
+                let mut world = world_arc.lock().unwrap();
                 if keys_pressed.contains(&KeyCode::Space) {
                     world.bodies[paddle1_index].velocity.y = paddle_speed;
                 } else if keys_pressed.contains(&KeyCode::ShiftLeft) {
@@ -195,25 +249,27 @@ async fn run() {
                 }
 
                 // Paddle 2 movement
-                let mut paddle2_vel_y = 0.0;
-                let mut paddle2_vel_z = 0.0;
-
                 if !camera_mode {
                     if keys_pressed.contains(&KeyCode::ArrowUp) {
-                        paddle2_vel_y = paddle_speed;
+                        world.bodies[paddle2_index].velocity.y = paddle_speed;
                     } else if keys_pressed.contains(&KeyCode::ArrowDown) {
-                        paddle2_vel_y = -paddle_speed;
+                        world.bodies[paddle2_index].velocity.y = -paddle_speed;
+                    } else if !keys_pressed.contains(&KeyCode::ArrowUp)
+                        && !keys_pressed.contains(&KeyCode::ArrowDown)
+                    {
+                        world.bodies[paddle2_index].velocity.y = 0.0;
                     }
 
                     if keys_pressed.contains(&KeyCode::ArrowLeft) {
-                        paddle2_vel_z = paddle_speed;
+                        world.bodies[paddle2_index].velocity.z = paddle_speed;
                     } else if keys_pressed.contains(&KeyCode::ArrowRight) {
-                        paddle2_vel_z = -paddle_speed;
+                        world.bodies[paddle2_index].velocity.z = -paddle_speed;
+                    } else if !keys_pressed.contains(&KeyCode::ArrowLeft)
+                        && !keys_pressed.contains(&KeyCode::ArrowRight)
+                    {
+                        world.bodies[paddle2_index].velocity.z = 0.0;
                     }
                 }
-
-                world.bodies[paddle2_index].velocity.y = paddle2_vel_y;
-                world.bodies[paddle2_index].velocity.z = paddle2_vel_z;
 
                 if camera_mode {
                     let rotation_speed = 2.0; // radians per second
@@ -300,24 +356,16 @@ async fn run() {
                     paddle2.velocity.z = 0.0;
                 }
 
-                for (i, body) in world.bodies.iter().enumerate() {
-                    game_objects[i].body = body.clone();
-                }
+                drop(world); // Release lock
 
-                // Update camera to follow paddle1 in first person
-                let paddle1_pos = world.bodies[paddle1_index].position;
-                camera.position = Vec3::new(
-                    paddle1_pos.x + 2.0, // Slightly behind the paddle
-                    paddle1_pos.y + 1.0, // Slightly above center
-                    paddle1_pos.z,
-                );
-
+                let mut game_state = game_state_arc.lock().unwrap();
                 if let Some(scorer) = game_state.check_scoring(&game_objects) {
                     println!(
                         "Player {} scored! Score: {} - {}",
                         scorer, game_state.score_player1, game_state.score_player2
                     );
 
+                    let mut world = world_arc.lock().unwrap();
                     world.bodies[ball_index].position = Vector3::new(0.0, 0.0, 0.0);
                     world.bodies[ball_index].velocity = if scorer == 1 {
                         Vector3::new(-8.0, 4.0, 0.0)
@@ -325,6 +373,21 @@ async fn run() {
                         Vector3::new(8.0, 4.0, 0.0)
                     };
                 }
+
+                // Update game_objects from world
+                let world = world_arc.lock().unwrap();
+                for (i, body) in world.bodies.iter().enumerate() {
+                    game_objects[i].body = body.clone();
+                }
+                drop(world);
+
+                // Update camera to follow paddle1 in first person
+                let paddle1_pos = game_objects[paddle1_index].body.position;
+                camera.position = Vec3::new(
+                    paddle1_pos.x + 2.0, // Slightly behind the paddle
+                    paddle1_pos.y + 1.0, // Slightly above center
+                    paddle1_pos.z,
+                );
 
                 // Sort game objects for transparency
                 let mut opaque = vec![];

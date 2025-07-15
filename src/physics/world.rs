@@ -1,18 +1,27 @@
-use crate::physics::object::AABB;
-
 use super::object::{RigidBody, Vec3};
+use crate::physics::object::AABB;
 use rayon::prelude::*;
+use serde::Serialize;
+use std::collections::HashMap;
 
+#[derive(Serialize)]
 pub struct World {
-    id: String,
-    tick_rate: f32,
+    pub id: String,
+    pub tick_rate: f32,
     pub bodies: Vec<RigidBody>,
+    pub body_map: HashMap<String, usize>,
 }
 impl World {
     pub fn new(id: String, tick_rate: f32, bodies: Vec<RigidBody>) -> Self {
         World {
             id,
             tick_rate,
+            body_map: bodies
+                .clone()
+                .iter()
+                .enumerate()
+                .map(|(i, b)| (b.id.clone(), i))
+                .collect(),
             bodies,
         }
     }
@@ -22,11 +31,22 @@ impl World {
             id: "world".to_string(),
             tick_rate: 60.0,
             bodies: Vec::new(),
+            body_map: HashMap::new(),
         }
     }
 
     pub fn add_body(&mut self, body: RigidBody) {
+        let index = self.bodies.len();
+        self.body_map.insert(body.id.clone(), index);
         self.bodies.push(body);
+    }
+    pub fn get_body(&self, id: &str) -> Option<&RigidBody> {
+        self.body_map.get(id).map(|&index| &self.bodies[index])
+    }
+    pub fn get_body_mut(&mut self, id: &str) -> Option<&mut RigidBody> {
+        self.body_map
+            .get_mut(id)
+            .map(|&mut index| &mut self.bodies[index])
     }
     pub fn step(&mut self, dt: f64) {
         let dt_f32 = dt as f32;

@@ -1,4 +1,6 @@
-#[derive(Clone, Copy, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -36,7 +38,7 @@ impl std::ops::Mul<f32> for Vec3 {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AABB {
     pub min: Vec3,
     pub max: Vec3,
@@ -82,7 +84,7 @@ impl AABB {
         *self = AABB::from_center_size(center, &size);
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RigidBody {
     pub id: String,
     pub position: Vec3,
@@ -116,7 +118,7 @@ impl RigidBody {
             restitution,
         }
     }
-    
+
     pub fn from_extents(
         position: Vec3,
         velocity: Vec3,
@@ -125,7 +127,11 @@ impl RigidBody {
         restitution: f32,
         is_static: bool,
     ) -> Self {
-        let size = Vec3::new(half_extents.x * 2.0, half_extents.y * 2.0, half_extents.z * 2.0);
+        let size = Vec3::new(
+            half_extents.x * 2.0,
+            half_extents.y * 2.0,
+            half_extents.z * 2.0,
+        );
         let aabb = AABB::from_center_size(&position, &size);
         RigidBody {
             id: String::new(),
@@ -137,7 +143,7 @@ impl RigidBody {
             restitution,
         }
     }
-    
+
     pub fn from_extents_with_id(
         id: String,
         position: Vec3,
@@ -147,7 +153,11 @@ impl RigidBody {
         restitution: f32,
         is_static: bool,
     ) -> Self {
-        let size = Vec3::new(half_extents.x * 2.0, half_extents.y * 2.0, half_extents.z * 2.0);
+        let size = Vec3::new(
+            half_extents.x * 2.0,
+            half_extents.y * 2.0,
+            half_extents.z * 2.0,
+        );
         let aabb = AABB::from_center_size(&position, &size);
         RigidBody {
             id,

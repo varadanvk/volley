@@ -1,5 +1,6 @@
 use crate::physics::{RigidBody, Vector3};
 use glam::{Mat4, Vec3};
+use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameObjectType {
@@ -54,6 +55,7 @@ impl GameObject {
     }
 }
 
+#[derive(Serialize)]
 pub struct GameState {
     pub score_player1: u32,
     pub score_player2: u32,
