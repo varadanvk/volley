@@ -1,10 +1,10 @@
 use super::object::{RigidBody, Vec3};
 use crate::physics::object::AABB;
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Deserialize)]
 pub struct World {
     pub id: String,
     pub tick_rate: f32,
