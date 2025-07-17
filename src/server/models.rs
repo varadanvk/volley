@@ -1,5 +1,4 @@
 use crate::physics::object::{RigidBody, Vec3, AABB};
-use crate::physics::world::World;
 use bincode;
 use serde::{Deserialize, Serialize};
 

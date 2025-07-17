@@ -12,7 +12,7 @@ use crate::server::models::{Action, WorldState};
 use crate::server::server::Engine;
 use glam::Vec3;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 use winit::{
