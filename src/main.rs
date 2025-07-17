@@ -324,32 +324,8 @@ async fn run() {
                         Vec3::new(paddle1_pos.x + 2.0, paddle1_pos.y + 1.0, paddle1_pos.z);
                 }
 
-                // Sort game objects for transparency
-                let mut opaque = vec![];
-                let mut transparent = vec![];
-                for obj in game_objects.iter() {
-                    if obj.color[3] < 1.0 {
-                        transparent.push(obj);
-                    } else {
-                        opaque.push(obj);
-                    }
-                }
-
-                transparent.sort_by(|a, b| {
-                    let pos_a =
-                        glam::Vec3::new(a.body.position.x, a.body.position.y, a.body.position.z);
-                    let dist_a = (camera.position - pos_a).length_squared();
-                    let pos_b =
-                        glam::Vec3::new(b.body.position.x, b.body.position.y, b.body.position.z);
-                    let dist_b = (camera.position - pos_b).length_squared();
-                    dist_b.partial_cmp(&dist_a).unwrap()
-                });
-
-                let mut all_objects: Vec<GameObject> = opaque.into_iter().cloned().collect();
-                all_objects.extend(transparent.into_iter().cloned());
-
-                // Render
-                match renderer.render(&camera, &all_objects) {
+                // Render directly with game_objects - no need to sort for transparency
+                match renderer.render(&camera, &game_objects) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost) => {
                         eprintln!("Surface lost!");
