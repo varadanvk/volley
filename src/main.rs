@@ -231,9 +231,9 @@ async fn run() {
 
                 // Paddle 1 movement
                 if keys_pressed.contains(&KeyCode::KeyW) {
-                    paddle1_vel.y = paddle_speed;
+                    paddle1_vel.x = paddle_speed;
                 } else if keys_pressed.contains(&KeyCode::KeyS) {
-                    paddle1_vel.y = -paddle_speed;
+                    paddle1_vel.x = -paddle_speed;
                 }
 
                 if keys_pressed.contains(&KeyCode::Space) {

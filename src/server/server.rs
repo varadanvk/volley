@@ -55,7 +55,7 @@ impl Engine {
         self.world.step(dt);
 
         // Constrain paddles within arena bounds
-        self.constrain_paddles();
+        // self.constrain_paddles();
 
         // Check for scoring
         let ball = &self.world.bodies[self.game_state.ball_index];
