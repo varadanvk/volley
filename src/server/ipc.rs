@@ -39,6 +39,23 @@ impl IPCChannel {
         Ok(Self { context, socket })
     }
 
+    // New: Create PUSH socket (for sending actions from client)
+    pub fn new_push(endpoint: &str) -> Result<Self, zmq::Error> {
+        let context = Context::new();
+        let socket = context.socket(zmq::PUSH)?;
+        socket.connect(endpoint)?;
+        Ok(Self { context, socket })
+    }
+
+    // New: Create SUB socket (for receiving state on client)
+    pub fn new_sub(endpoint: &str) -> Result<Self, zmq::Error> {
+        let context = Context::new();
+        let socket = context.socket(zmq::SUB)?;
+        socket.connect(endpoint)?;
+        socket.set_subscribe(b"")?; // Subscribe to all messages
+        Ok(Self { context, socket })
+    }
+
     // Raw send bytes
     pub fn send_bytes(&self, data: &[u8]) -> Result<(), zmq::Error> {
         self.socket.send(data, 0)

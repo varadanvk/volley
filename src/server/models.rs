@@ -65,6 +65,8 @@ impl Action {
 pub struct WorldState {
     pub bodies: Vec<RigidBody>,
     pub time: f32,
+    pub score_player1: u32,
+    pub score_player2: u32,
 }
 impl WorldState {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SerializationError> {
