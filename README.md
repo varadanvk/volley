@@ -1,4 +1,4 @@
-# Volley - 3D Game Engine for Pong
+# volley
 
 A 3D volleyball-inspired game built with Rust, WebGPU, and custom physics.
 

@@ -2,6 +2,7 @@ use crate::game::game_engine::GameState;
 use crate::physics::{Vector3, World};
 use crate::server::ipc::IPCChannel;
 use crate::server::models::{Action, WorldState};
+use rand::Rng;
 use std::time::{Duration, Instant};
 
 pub struct Engine {
@@ -115,11 +116,12 @@ impl Engine {
 
     fn reset_ball(&mut self, scorer: u8) {
         let ball = &mut self.world.bodies[self.game_state.ball_index];
+        let rand_z = rand::rng().gen_range(-2.0..2.0);
         ball.position = Vector3::new(0.0, 0.0, 0.0);
         ball.velocity = if scorer == 1 {
-            Vector3::new(-8.0, 4.0, 0.0)
+            Vector3::new(-7.0, 4.0, rand_z)
         } else {
-            Vector3::new(8.0, 4.0, 0.0)
+            Vector3::new(7.0, 4.0, rand_z)
         };
     }
 
@@ -133,6 +135,7 @@ impl Engine {
     }
 
     pub fn post_action(&mut self, action: Action) {
+        let action_clone = action.clone();
         let body_id = action.body_id;
         let body = self.world.get_body_mut(&body_id);
         if let Some(body) = body {
@@ -159,6 +162,7 @@ impl Engine {
                 body.dynamic = action.dynamic;
             }
         }
+        println!("Action received: {:?}", action_clone);
     }
 
     pub fn reset(&mut self, state: WorldState) {
