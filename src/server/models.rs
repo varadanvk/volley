@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub enum SerializationError {
     EncodeError(bincode::error::EncodeError),
     DecodeError(bincode::error::DecodeError),
+    MsgPackEncode(rmp_serde::encode::Error),
+    MsgPackDecode(rmp_serde::decode::Error),
 }
 
 impl From<bincode::error::EncodeError> for SerializationError {
@@ -17,6 +19,18 @@ impl From<bincode::error::EncodeError> for SerializationError {
 impl From<bincode::error::DecodeError> for SerializationError {
     fn from(err: bincode::error::DecodeError) -> Self {
         SerializationError::DecodeError(err)
+    }
+}
+
+impl From<rmp_serde::encode::Error> for SerializationError {
+    fn from(err: rmp_serde::encode::Error) -> Self {
+        SerializationError::MsgPackEncode(err)
+    }
+}
+
+impl From<rmp_serde::decode::Error> for SerializationError {
+    fn from(err: rmp_serde::decode::Error) -> Self {
+        SerializationError::MsgPackDecode(err)
     }
 }
 
@@ -58,6 +72,12 @@ impl Action {
         let bytes = bincode::serde::encode_to_vec(self, bincode::config::standard())?;
         Ok(bytes)
     }
+    pub fn from_msgpack(bytes: &[u8]) -> Result<Self, SerializationError> {
+        Ok(rmp_serde::from_slice(bytes)?)
+    }
+    pub fn to_msgpack(&self) -> Result<Vec<u8>, SerializationError> {
+        Ok(rmp_serde::to_vec_named(self)?)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -75,5 +95,11 @@ impl WorldState {
     pub fn to_bytes(&self) -> Result<Vec<u8>, SerializationError> {
         let bytes = bincode::serde::encode_to_vec(self, bincode::config::standard())?;
         Ok(bytes)
+    }
+    pub fn from_msgpack(bytes: &[u8]) -> Result<Self, SerializationError> {
+        Ok(rmp_serde::from_slice(bytes)?)
+    }
+    pub fn to_msgpack(&self) -> Result<Vec<u8>, SerializationError> {
+        Ok(rmp_serde::to_vec_named(self)?)
     }
 }

@@ -148,9 +148,13 @@ impl Engine {
 
             if position_changed {
                 body.update_position(action.position.x, action.position.y, action.position.z);
+                println!("🎯 Action: {} position -> ({:.1}, {:.1}, {:.1})",
+                    body_id, action.position.x, action.position.y, action.position.z);
             }
             if velocity_changed {
                 body.update_velocity(action.velocity.x, action.velocity.y, action.velocity.z);
+                println!("🚀 Action: {} velocity -> ({:.1}, {:.1}, {:.1})",
+                    body_id, action.velocity.x, action.velocity.y, action.velocity.z);
             }
             if body.mass != action.mass {
                 body.mass = action.mass;
@@ -161,8 +165,9 @@ impl Engine {
             if body.dynamic != action.dynamic {
                 body.dynamic = action.dynamic;
             }
+        } else {
+            println!("⚠️  Action ignored: body '{}' not found", body_id);
         }
-        println!("Action received: {:?}", action_clone);
     }
 
     pub fn reset(&mut self, state: WorldState) {
@@ -173,6 +178,46 @@ impl Engine {
     }
 
     // Updated run method with PUSH/PULL + PUB/SUB
+    pub fn run_correct(&mut self) -> Result<(), zmq::Error> {
+        let mut last_time = Instant::now();
+        let mut last_state_send = Instant::now();
+        let state_interval = Duration::from_millis(16); // ~60Hz
+        let mut accumulator = 0.0;
+        let fixed_timestep = 1.0 / 120.0; // 120Hz physics
+
+        loop {
+            // Calculate delta time
+            let now = Instant::now();
+            let frame_time = (now - last_time).as_secs_f64();
+            last_time = now;
+            accumulator += frame_time;
+
+            // Process ALL pending actions (drain the queue)
+            while let Ok(bytes) = self.action_channel.recv_bytes_nonblocking() {
+                if let Ok(action) = Action::from_msgpack(&bytes) {
+                    self.post_action(action);
+                }
+            }
+
+            // Fixed timestep physics updates
+            while accumulator >= fixed_timestep {
+                self.step(fixed_timestep);
+                accumulator -= fixed_timestep;
+            }
+
+            // Broadcast state periodically
+            if last_state_send.elapsed() >= state_interval {
+                let world_state = self.get_state();
+                if let Ok(response) = world_state.to_msgpack() {
+                    let _ = self.state_channel.send_bytes(&response);
+                }
+                last_state_send = Instant::now();
+            }
+
+            // Small sleep to avoid 100% CPU
+            std::thread::sleep(Duration::from_millis(3));
+        }
+    }
     pub fn run(&mut self) -> Result<(), zmq::Error> {
         let mut last_time = Instant::now();
         let mut last_state_send = Instant::now();
@@ -189,7 +234,7 @@ impl Engine {
 
             // Process ALL pending actions (drain the queue)
             while let Ok(bytes) = self.action_channel.recv_bytes_nonblocking() {
-                if let Ok(action) = Action::from_bytes(&bytes) {
+                if let Ok(action) = Action::from_msgpack(&bytes) {
                     self.post_action(action);
                 }
             }
@@ -203,7 +248,7 @@ impl Engine {
             // Broadcast state periodically
             if last_state_send.elapsed() >= state_interval {
                 let world_state = self.get_state();
-                if let Ok(response) = world_state.to_bytes() {
+                if let Ok(response) = world_state.to_msgpack() {
                     let _ = self.state_channel.send_bytes(&response);
                 }
                 last_state_send = Instant::now();

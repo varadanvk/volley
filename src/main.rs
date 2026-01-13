@@ -198,7 +198,7 @@ async fn run() {
                 // Process ALL available state updates (get the latest)
                 let mut latest_state = None;
                 while let Ok(bytes) = state_channel.recv_bytes_nonblocking() {
-                    if let Ok(world_state) = WorldState::from_bytes(&bytes) {
+                    if let Ok(world_state) = WorldState::from_msgpack(&bytes) {
                         latest_state = Some(world_state);
                     }
                 }
@@ -259,7 +259,7 @@ async fn run() {
                         restitution: paddle1.body.restitution,
                         dynamic: paddle1.body.dynamic,
                     };
-                    if let Ok(bytes) = action.to_bytes() {
+                    if let Ok(bytes) = action.to_msgpack() {
                         let _ = action_channel.send_bytes(&bytes);
                     }
                 }
@@ -290,7 +290,7 @@ async fn run() {
                             restitution: paddle2.body.restitution,
                             dynamic: paddle2.body.dynamic,
                         };
-                        if let Ok(bytes) = action.to_bytes() {
+                        if let Ok(bytes) = action.to_msgpack() {
                             let _ = action_channel.send_bytes(&bytes);
                         }
                     }
